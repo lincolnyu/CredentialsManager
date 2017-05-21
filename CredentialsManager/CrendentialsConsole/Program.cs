@@ -1,17 +1,22 @@
 ﻿using System;
 using CredentialsManagerLib.Models;
 using System.IO;
+using System.Linq;
 
 namespace CrendentialsConsole
 {
     class Program
     {
-        private Program(Repository repo)
+        private Program(string repoPath)
         {
-            _repo = repo;
+            _repoPath = repoPath;
+            _repo = new Repository();
+            TryLoad();
         }
 
+        private string _repoPath;
         private Repository _repo;
+        private bool _dirty;
 
         static void Main(string[] args)
         {
@@ -26,24 +31,37 @@ namespace CrendentialsConsole
                 PrintUsage();
                 return;
             }
+            
 
-            var repo = new Repository();
-            if (File.Exists(repoPath))
+            var prog = new Program(repoPath);
+            prog.TryLoad();
+            prog.RunLoop();
+            prog.Save();
+          
+        }
+
+        private void TryLoad()
+        {
+            if (File.Exists(_repoPath))
             {
-                using (var sr = new StreamReader(repoPath))
+                using (var sr = new StreamReader(_repoPath))
                 {
                     var s = sr.ReadToEnd();
-                    repo.LoadFromJsonString(s);
+                    _repo.LoadFromJsonString(s);
                 }
             }
+        }
 
-            var prog = new Program(repo);
-            prog.RunLoop();
-
-            using (var sw = new StreamWriter(repoPath))
+        private void Save()
+        {
+            if (_dirty)
             {
-                var s = repo.SaveToFormattedJsonString(0, 2);
-                sw.Write(s);
+                using (var sw = new StreamWriter(_repoPath))
+                {
+                    var s = _repo.SaveToFormattedJsonString(0, 2);
+                    sw.Write(s);
+                }
+                _dirty = false;
             }
         }
 
@@ -127,27 +145,23 @@ namespace CrendentialsConsole
 
         private void AddProvider()
         {
-            Console.Write("Provider name:");
-            var input = Console.ReadLine().Trim();
+            var name = GetInput("Provider name:");
             var provider = new Provider();
-            _repo.Providers.Add(input, provider);
+            _repo.Providers.Add(name, provider);
         }
 
         private void RemoveProvider()
         {
-            Console.Write("Provider name:");
-            var name = Console.ReadLine().Trim();
+            var name = GetInput("Provider name:");
             if (_repo.Providers.ContainsKey(name))
             {
-                Console.WriteLine("Are you sure?");
-                var key = Console.ReadKey();
-                Console.WriteLine();
-                if (key.KeyChar == 'Y')
+                if (PromptConfirm())
                 {
                     var found = _repo.Providers.Remove(name);
                     if (found)
                     {
                         Console.WriteLine("Successfully removed.");
+                        _dirty = true;
                     }
                     else
                     {
@@ -163,19 +177,18 @@ namespace CrendentialsConsole
 
         private void EditProvider()
         {
-            Console.Write("Provider name:");
-            var name = Console.ReadLine().Trim();
+            var name = GetInput("Provider name:");
             if (_repo.Providers.TryGetValue(name, out var provider))
             {
-                Console.Write("Change name?");
-                var key = Console.ReadKey();
-                Console.WriteLine();
-                if (key.KeyChar == 'Y')
+                if (PromptConfirm(new [] { 'Y', 'y' }, "Change name?"))
                 {
-                    Console.Write("New name:");
-                    var newName = Console.ReadLine().Trim();
-                    _repo.Providers.Remove(name);
-                    _repo.Providers[newName] = provider;
+                    var newName = GetInput("New name:");
+                    if (PromptConfirm())
+                    {
+                        _repo.Providers.Remove(name);
+                        _repo.Providers[newName] = provider;
+                        _dirty = true;
+                    }
                 }
             }
             else
@@ -184,20 +197,79 @@ namespace CrendentialsConsole
             }
         }
 
-
         private void AddAccount()
         {
-
+            var providerName = GetInput("Provider name:");
+            if (_repo.Providers.TryGetValue(providerName, out var provider))
+            {
+                var inputName = GetInput("Input name:");
+                if (!provider.Accounts.ContainsKey(inputName))
+                {
+                    var password = GetInput("Password:");
+                    var account = new Account
+                    {
+                        UserName = inputName,
+                        Password = password
+                    };
+                    provider.Accounts.Add(inputName, account);
+                    _dirty = true;
+                }
+                else
+                {
+                    Console.WriteLine("Account already exists");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Provider not found.");
+            }
         }
 
         private void RemoveAccount()
         {
-
+            var providerName = GetInput("Provider name:");
+            if (_repo.Providers.TryGetValue(providerName, out var provider))
+            {
+                var accountName = GetInput("Account name:");
+                if (provider.Accounts.ContainsKey(accountName))
+                {
+                    if (PromptConfirm())
+                    {
+                        provider.Accounts.Remove(accountName);
+                        _dirty = true;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Account not found.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Provider not found.");
+            }
         }
 
         private void EditAccount()
         {
+            throw new System.NotImplementedException();
+        }
 
+        private bool PromptConfirm(string msg = "Are you sure? (Y)")
+            => PromptConfirm(new char[] { 'Y' }, msg);
+
+        private bool PromptConfirm(char[] yesKeys, string msg = "Are you sure?")
+        {
+            Console.Write(msg);
+            var key = Console.ReadKey();
+            Console.WriteLine();
+            return yesKeys.Contains(key.KeyChar);
+        }
+
+        private string GetInput(string msg)
+        {
+            Console.Write(msg);
+            return Console.ReadLine().Trim();
         }
 
         private static void PrintUsage()

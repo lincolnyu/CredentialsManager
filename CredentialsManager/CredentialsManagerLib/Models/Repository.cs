@@ -8,7 +8,12 @@ namespace CredentialsManagerLib.Models
     {
         public Lookup<Provider> Providers { get; } = new Lookup<Provider>();
 
-        public void FromJson(JsonNode jn) => Providers.LookupFromJson((JsonPairs)jn, CreateProviderFromJson);
+        public void FromJson(JsonNode jn)
+        {
+            Providers.Clear();
+            Providers.LookupFromJson((JsonPairs)jn, CreateProviderFromJson);
+        }
+
         public JsonNode ToJson() => Providers.LookupToJson();
 
         private Provider CreateProviderFromJson(JsonNode jn)

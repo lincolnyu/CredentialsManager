@@ -18,7 +18,12 @@ namespace CredentialsManagerLib.Models
             set => SetValue("password", value);
         }
 
-        public void FromJson(JsonNode jn) => KeyValues.LookupFromJsonValues((JsonPairs)jn);
+        public void FromJson(JsonNode jn)
+        {
+            KeyValues.Clear();
+            KeyValues.LookupFromJsonValues((JsonPairs)jn);
+        }
+
         public JsonNode ToJson() => KeyValues.LookupToJsonValues();
 
         private void SetValue(string key, object val)

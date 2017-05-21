@@ -10,6 +10,8 @@ namespace CredentialsManagerLib.Models
 
         public void FromJson(JsonNode jn)
         {
+            KeyValues.Clear();
+            Accounts.Clear();
             KeyValues.LookupFromJsonValues((JsonPairs)jn, (t)=> t.Item1 != "accounts");
             if (((JsonPairs)jn).KeyValues.TryGetValue("accounts", out var js))
             {
